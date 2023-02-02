@@ -65,4 +65,29 @@ const verifyName = async (
     return next();
 };
 
-export { verifyId, verifyName };
+const verifyPostMovie = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<Response | void> => {
+    const kyes: Array<string> = Object.keys(req.body);
+    const requiredKeys: Array<string> = [
+        "description",
+        "duration",
+        "name",
+        "price",
+    ];
+    const allRequired: boolean = kyes.every((key: string) => {
+        return requiredKeys.includes(key);
+    });
+
+    if (!allRequired) {
+        return res.status(400).json({
+            message: `Required keys are: ${requiredKeys}`,
+        });
+    }
+
+    return next();
+};
+
+export { verifyId, verifyName, verifyPostMovie };

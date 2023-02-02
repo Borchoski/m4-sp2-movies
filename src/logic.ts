@@ -8,14 +8,16 @@ const getMovies = async (req: Request, res: Response): Promise<Response> => {
     let perPage: any = req.query.perPage === undefined ? 5 : req.query.perPage;
     let page: any = req.query.page === undefined ? 1 : req.query.page;
 
-    if (perPage < 0 || perPage > 5) {
-        perPage = 5;
-    }
-    if (page < 0) {
-        page = 1;
-    }
+    let sort: any = req.query.sort === undefined ? null : req.query.sort;
+    let order: any = req.query.order === undefined ? "ASC" : req.query.order;
 
-    const query: string = `
+    perPage < 0 || perPage > 5 ? (perPage = 5) : null;
+    page < 0 ? (page = 1) : null;
+
+    sort != "duration" || sort != "price" ? (sort = null) : null;
+
+    if (!sort) {
+        const query: string = `
         SELECT 
             * 
         FROM 
@@ -25,14 +27,54 @@ const getMovies = async (req: Request, res: Response): Promise<Response> => {
         OFFSET
             $2;
         `;
+
+        const queryConfig: QueryConfig = {
+            text: query,
+            values: [perPage, page - 1],
+        };
+        const queryResult = await client.query(queryConfig);
+
+        const previousPage =
+            page === 1 ? null : `localhost:3000/movies?page=${+page - 1}`;
+        const nextPage = `localhost:3000/movies?page=${+page + 1}`;
+
+        return res
+            .status(200)
+            .json([
+                `Next page: ${nextPage}`,
+                `Previous page: ${previousPage}`,
+                `Count: ${queryResult.rowCount}`,
+                ...queryResult.rows,
+            ]);
+    }
+
+    const queryString: string = format(
+        `
+    SELECT 
+        * 
+    FROM 
+        movies
+    ORDER BY
+        %s  %s
+    LIMIT 
+        $1 
+    OFFSET
+        $2;
+    `,
+        sort,
+        order
+    );
+
+    //console.log(perPage, page, sort, order);
+
     const queryConfig: QueryConfig = {
-        text: query,
+        text: queryString,
         values: [perPage, page - 1],
     };
     const queryResult = await client.query(queryConfig);
 
     const previousPage =
-        page === 0 ? null : `localhost:3000/movies?page=${+page - 1}`;
+        page === 1 ? null : `localhost:3000/movies?page=${+page - 1}`;
     const nextPage = `localhost:3000/movies?page=${+page + 1}`;
 
     return res
@@ -68,27 +110,30 @@ const newMovie = async (req: Request, res: Response): Promise<Response> => {
 
 const updateMovie = async (req: Request, res: Response) => {
     const id: number = +req.params.id;
+    const orderData = Object.values(req.body);
+    const orderKeys = Object.keys(req.body);
 
-    const queryString = `
-    SELECT  
-        *
-    FROM
-        movies
-    WHERE
-        id = $1;
-    `;
+    const queryString: string = format(
+        `
+        UPDATE 
+            movies
+        SET(%I) = ROW(%L)
+        WHERE 
+            id = $1
+        RETURNING *;
+    `,
+        orderKeys,
+        orderData
+    );
 
     const QueryConfig: QueryConfig = {
         text: queryString,
         values: [id],
     };
 
-    const queryResult: movieResult = await (
-        await client.query(QueryConfig)
-    ).rows[0];
-    console.log(queryResult);
+    const queryResult: movieResult = await client.query(QueryConfig);
 
-    return res.status(200).json();
+    return res.status(200).json(queryResult.rows[0]);
 };
 
 const deleteMovie = async (req: Request, res: Response): Promise<Response> => {
@@ -106,9 +151,14 @@ const deleteMovie = async (req: Request, res: Response): Promise<Response> => {
         values: [id],
     };
 
-    const QueryResult: movieResult = await client.query(queryConfig);
+    await client.query(queryConfig);
 
     return res.status(204).send();
 };
 
 export { getMovies, newMovie, updateMovie, deleteMovie };
+function toUpperCase(
+    order: string | import("qs").ParsedQs | string[] | import("qs").ParsedQs[]
+): any {
+    throw new Error("Function not implemented.");
+}

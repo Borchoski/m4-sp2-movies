@@ -1,7 +1,7 @@
 import express, { Application } from "express";
 import { startDatabase } from "./db";
 import { deleteMovie, getMovies, newMovie, updateMovie } from "./logic";
-import { verifyId, verifyName } from "./middlewares";
+import { verifyId, verifyName, verifyPostMovie } from "./middlewares";
 
 const app: Application = express();
 app.use(express.json());
@@ -12,6 +12,6 @@ app.listen(3000, async () => {
 });
 
 app.get("/movies", getMovies);
-app.post("/movies", verifyName, newMovie);
-app.patch("/movies/:id", verifyId, updateMovie);
+app.post("/movies", verifyPostMovie, verifyName, newMovie);
+app.patch("/movies/:id", verifyPostMovie, verifyId, verifyName, updateMovie);
 app.delete("/movies/:id", verifyId, deleteMovie);
